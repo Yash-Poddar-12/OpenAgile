@@ -1,0 +1,20 @@
+[31msrc/App.jsx (13:9): "UnauthorizedPage" is not exported by "src/pages/UnauthorizedPage.jsx", imported by "src/App.jsx".[39m
+file: [36mC:/Users/admin/Desktop/SEM_6/SOFTWARE/OpenAgile/client/src/App.jsx:13:9[39m
+[33m
+11: import { AnalyticsPage } from './pages/AnalyticsPage';
+12: import { RolesPage } from './pages/RolesPage';
+13: import { UnauthorizedPage } from './pages/UnauthorizedPage';
+             ^
+14: 
+15: export default function App() {
+[39m
+    at getRollupError (file:///C:/Users/admin/Desktop/SEM_6/SOFTWARE/OpenAgile/client/node_modules/rollup/dist/es/shared/parseAst.js:406:41)
+    at error (file:///C:/Users/admin/Desktop/SEM_6/SOFTWARE/OpenAgile/client/node_modules/rollup/dist/es/shared/parseAst.js:402:42)
+    at Module.error (file:///C:/Users/admin/Desktop/SEM_6/SOFTWARE/OpenAgile/client/node_modules/rollup/dist/es/shared/node-entry.js:17380:16)
+    at Module.traceVariable (file:///C:/Users/admin/Desktop/SEM_6/SOFTWARE/OpenAgile/client/node_modules/rollup/dist/es/shared/node-entry.js:17813:29)
+    at ModuleScope.findVariable (file:///C:/Users/admin/Desktop/SEM_6/SOFTWARE/OpenAgile/client/node_modules/rollup/dist/es/shared/node-entry.js:15403:39)
+    at FunctionScope.findVariable (file:///C:/Users/admin/Desktop/SEM_6/SOFTWARE/OpenAgile/client/node_modules/rollup/dist/es/shared/node-entry.js:5676:38)
+    at FunctionBodyScope.findVariable (file:///C:/Users/admin/Desktop/SEM_6/SOFTWARE/OpenAgile/client/node_modules/rollup/dist/es/shared/node-entry.js:5676:38)
+    at Identifier.bind (file:///C:/Users/admin/Desktop/SEM_6/SOFTWARE/OpenAgile/client/node_modules/rollup/dist/es/shared/node-entry.js:5450:40)
+    at CallExpression.bind (file:///C:/Users/admin/Desktop/SEM_6/SOFTWARE/OpenAgile/client/node_modules/rollup/dist/es/shared/node-entry.js:2828:28)
+    at CallExpression.bind (file:///C:/Users/admin/Desktop/SEM_6/SOFTWARE/OpenAgile/client/node_modules/rollup/dist/es/shared/node-entry.js:12512:15)
