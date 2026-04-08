@@ -1,13 +1,15 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
+const DEMO_ROLE = 'Admin';
+
 /**
  * Generate a signed JWT for the given user document.
  * Payload: { userId, role, email }
  */
 const signToken = (user) => {
   return jwt.sign(
-    { userId: user.userId, role: user.role, email: user.email },
+    { userId: user.userId, role: DEMO_ROLE, email: user.email },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRY }
   );
@@ -28,8 +30,8 @@ const register = async (req, res, next) => {
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: 'A valid email is required' });
     }
-    if (!password || password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    if (!password || password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
     }
 
     // Check uniqueness before attempting insert (friendlier error)
@@ -39,7 +41,7 @@ const register = async (req, res, next) => {
     }
 
     // Create user — set passwordHash to plain password; pre-save hook will hash it
-    const role = process.env.NODE_ENV === 'development' ? 'Admin' : 'Viewer';
+    const role = DEMO_ROLE;
     
     const user = new User({
       name: name.trim(),
@@ -58,7 +60,7 @@ const register = async (req, res, next) => {
         userId: user.userId,
         name: user.name,
         email: user.email,
-        role: user.role,
+        role: DEMO_ROLE,
       },
     });
   } catch (err) {
@@ -98,8 +100,31 @@ const login = async (req, res, next) => {
         userId: user.userId,
         name: user.name,
         email: user.email,
-        role: user.role,
+        role: DEMO_ROLE,
       },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const requestReset = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'A valid email is required' });
+    }
+
+    const user = await User.findByEmail(email);
+    if (!user || !user.isActive) {
+      return res.status(200).json({
+        message: 'If an active account exists for that email, a reset request has been recorded.',
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Password reset request recorded. Contact an administrator to complete the reset.',
     });
   } catch (err) {
     next(err);
@@ -121,10 +146,17 @@ const me = async (req, res, next) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    return res.status(200).json({ user });
+    const plainUser = user.toObject ? user.toObject() : user;
+
+    return res.status(200).json({
+      user: {
+        ...plainUser,
+        role: DEMO_ROLE,
+      },
+    });
   } catch (err) {
     next(err);
   }
 };
 
-module.exports = { register, login, me };
+module.exports = { register, login, me, requestReset };

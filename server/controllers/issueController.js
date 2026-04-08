@@ -3,6 +3,7 @@ const Project = require('../models/Project');
 const Sprint = require('../models/Sprint');
 const User = require('../models/User');
 const ActivityLog = require('../models/ActivityLog');
+const mongoose = require('mongoose');
 
 const VALID_STATUSES = ['ToDo', 'InProgress', 'Review', 'Done'];
 const VALID_PRIORITIES = ['High', 'Medium', 'Low'];
@@ -17,6 +18,32 @@ const normalizeNullableField = (value) => {
   }
 
   return value;
+};
+
+const buildIssueIdentifierQuery = (identifier) => {
+  if (mongoose.Types.ObjectId.isValid(identifier)) {
+    return {
+      $or: [
+        { issueId: identifier },
+        { _id: identifier },
+      ],
+    };
+  }
+
+  return { issueId: identifier };
+};
+
+const hydrateIssueComments = async (issue) => {
+  const authorIds = [...new Set((issue.comments || []).map((comment) => comment.authorId).filter(Boolean))];
+  const authors = authorIds.length > 0
+    ? await User.find({ userId: { $in: authorIds } }, { userId: 1, name: 1 }).lean()
+    : [];
+  const authorLookup = new Map(authors.map((author) => [author.userId, author.name]));
+
+  return (issue.comments || []).map((comment) => ({
+    ...comment,
+    authorName: authorLookup.get(comment.authorId) || comment.authorId,
+  }));
 };
 
 /**
@@ -172,7 +199,7 @@ const updateIssue = async (req, res, next) => {
     const changedFields = {};
     
     // Check if issue exists
-    const issue = await Issue.findOne({ issueId: id, isDeleted: false });
+    const issue = await Issue.findOne({ ...buildIssueIdentifierQuery(id), isDeleted: false });
     if (!issue) return res.status(404).json({ error: 'Issue not found' });
 
     const nextProjectId = req.body.projectId || issue.projectId;
@@ -235,7 +262,7 @@ const updateIssue = async (req, res, next) => {
     }
 
     const updatedIssue = await Issue.findOneAndUpdate(
-      { issueId: id },
+      buildIssueIdentifierQuery(id),
       { $set: updates },
       { new: true }
     );
@@ -270,7 +297,7 @@ const updateStatus = async (req, res, next) => {
       return res.status(400).json({ error: 'Invalid status value' });
     }
 
-    const issue = await Issue.findOne({ issueId: id, isDeleted: false });
+    const issue = await Issue.findOne({ ...buildIssueIdentifierQuery(id), isDeleted: false });
     if (!issue) return res.status(404).json({ error: 'Issue not found' });
 
     const currentStatus = issue.status;
@@ -333,7 +360,7 @@ const deleteIssue = async (req, res, next) => {
     const { id } = req.params;
 
     const issue = await Issue.findOneAndUpdate(
-      { issueId: id },
+      buildIssueIdentifierQuery(id),
       { $set: { isDeleted: true } },
       { new: true }
     );
@@ -362,16 +389,71 @@ const getIssue = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const issue = await Issue.findOne({ issueId: id, isDeleted: false }).lean();
+    const issue = await Issue.findOne({ ...buildIssueIdentifierQuery(id), isDeleted: false }).lean();
     if (!issue) return res.status(404).json({ error: 'Issue not found' });
 
-    // Get activity logs for this issue
     const activityLog = await ActivityLog.find({ entityId: id })
-      .populate('performedBy', 'name email role')
       .sort({ timestamp: -1 })
       .lean();
 
-    return res.status(200).json({ issue, activityLog });
+    const actorIds = [...new Set(activityLog.map((entry) => entry.performedBy).filter(Boolean))];
+    const actors = actorIds.length > 0
+      ? await User.find({ userId: { $in: actorIds } }, { userId: 1, name: 1, email: 1, role: 1 }).lean()
+      : [];
+    const actorLookup = new Map(actors.map((actor) => [actor.userId, actor]));
+
+    const hydratedActivityLog = activityLog.map((entry) => ({
+      ...entry,
+      performer: actorLookup.get(entry.performedBy) || null,
+    }));
+
+    return res.status(200).json({
+      issue: {
+        ...issue,
+        comments: await hydrateIssueComments(issue),
+      },
+      activityLog: hydratedActivityLog,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const addComment = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { content } = req.body;
+
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: 'Comment content is required' });
+    }
+
+    const issue = await Issue.findOne({ ...buildIssueIdentifierQuery(id), isDeleted: false });
+    if (!issue) {
+      return res.status(404).json({ error: 'Issue not found' });
+    }
+
+    issue.comments.push({
+      authorId: req.user.userId,
+      content: content.trim(),
+    });
+    await issue.save();
+
+    await ActivityLog.create({
+      entityType: 'Issue',
+      entityId: id,
+      action: 'COMMENT_ADDED',
+      performedBy: req.user.userId,
+      details: { contentPreview: content.trim().slice(0, 80) },
+    });
+
+    const persistedComment = issue.comments[issue.comments.length - 1];
+    return res.status(201).json({
+      comment: {
+        ...persistedComment.toObject(),
+        authorName: req.user.email,
+      },
+    });
   } catch (err) {
     next(err);
   }
@@ -384,4 +466,5 @@ module.exports = {
   updateStatus,
   deleteIssue,
   getIssue,
+  addComment,
 };

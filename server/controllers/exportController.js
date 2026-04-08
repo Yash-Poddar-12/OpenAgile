@@ -2,7 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const archiver = require('archiver');
 const PDFDocument = require('pdfkit');
-const { createCanvas, loadImage } = require('canvas');
+const { PassThrough } = require('stream');
+const { createCanvas } = require('canvas');
 const DependencyGraph = require('../models/DependencyGraph');
 const Issue = require('../models/Issue');
 const Project = require('../models/Project');
@@ -16,33 +17,149 @@ const { graphToCSV, issuesToCSV } = require('../utils/csvSerializer');
  * Comprehensive export system for reports and artifacts.
  */
 
-// Helper to generate a simple DOCX-like buffer (actually just a plain text file for "minimal" or we could use markdown)
-// Since we don't have a docx library, we'll provide a well-formatted text file as a fallback or a simple markdown.
-// The spec said DOCX, but if we don't have the lib, we'll do a basic buffer. 
-// I will implement a very basic RTF or just text with a .docx extension for the demo if needed, 
-// but it's better to stay honest to the buffer.
-const generateDocxBuffer = (project) => {
-  const content = `
-    PROJECT SPECIFICATION DOCUMENT
-    -----------------------------
-    Project Name: ${project.name}
-    Description: ${project.description}
-    Status: ${project.status}
-    Generated At: ${new Date().toLocaleString()}
-    
-    This document serves as a placeholder for the Software Requirements Specification (SRS).
-    In a production environment, this would be generated using a proper DOCX library.
-  `;
-  return Buffer.from(content, 'utf-8');
+const escapeXml = (value = '') =>
+  String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+
+const createArchiveBuffer = (files) => new Promise((resolve, reject) => {
+  const archive = archiver('zip', { zlib: { level: 9 } });
+  const stream = new PassThrough();
+  const chunks = [];
+
+  stream.on('data', (chunk) => chunks.push(chunk));
+  stream.on('end', () => resolve(Buffer.concat(chunks)));
+  archive.on('error', reject);
+  archive.pipe(stream);
+
+  files.forEach((file) => {
+    archive.append(file.content, { name: file.name });
+  });
+
+  archive.finalize().catch(reject);
+});
+
+const generateDocxBuffer = async ({ project, issues, sprint }) => {
+  const now = new Date().toISOString();
+  const summaryLines = [
+    `Project: ${project.name}`,
+    `Status: ${project.status}`,
+    `Repository Path: ${project.repositoryPath || 'Not set'}`,
+    `Generated At: ${new Date().toLocaleString()}`,
+    `Open Issues: ${issues.filter((issue) => issue.status !== 'Done').length}`,
+    `Total Issues: ${issues.length}`,
+    `Current Sprint: ${sprint?.name || 'None'}`,
+  ];
+
+  const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>OpenAgile Project Summary</w:t></w:r></w:p>
+    <w:p><w:r><w:t>${escapeXml(project.name)}</w:t></w:r></w:p>
+    ${summaryLines.map((line) => `<w:p><w:r><w:t xml:space="preserve">${escapeXml(line)}</w:t></w:r></w:p>`).join('')}
+    <w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>Project Description</w:t></w:r></w:p>
+    <w:p><w:r><w:t xml:space="preserve">${escapeXml(project.description || 'No description provided.')}</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>Issue Overview</w:t></w:r></w:p>
+    ${issues.slice(0, 25).map((issue) => `<w:p><w:r><w:t xml:space="preserve">${escapeXml(`[${issue.issueId}] ${issue.title} - ${issue.status} (${issue.priority})`)}</w:t></w:r></w:p>`).join('')}
+    <w:sectPr>
+      <w:pgSz w:w="12240" w:h="15840"/>
+      <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/>
+    </w:sectPr>
+  </w:body>
+</w:document>`;
+
+  const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
+    <w:name w:val="Normal"/>
+    <w:qFormat/>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading1">
+    <w:name w:val="heading 1"/>
+    <w:qFormat/>
+    <w:rPr><w:b/><w:sz w:val="32"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading2">
+    <w:name w:val="heading 2"/>
+    <w:qFormat/>
+    <w:rPr><w:b/><w:sz w:val="26"/></w:rPr>
+  </w:style>
+</w:styles>`;
+
+  return createArchiveBuffer([
+    {
+      name: '[Content_Types].xml',
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+</Types>`,
+    },
+    {
+      name: '_rels/.rels',
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
+</Relationships>`,
+    },
+    {
+      name: 'word/_rels/document.xml.rels',
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`,
+    },
+    { name: 'word/document.xml', content: documentXml },
+    { name: 'word/styles.xml', content: stylesXml },
+    {
+      name: 'docProps/core.xml',
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <dc:title>OpenAgile Project Summary</dc:title>
+  <dc:creator>OpenAgile</dc:creator>
+  <dcterms:created xsi:type="dcterms:W3CDTF">${now}</dcterms:created>
+  <dcterms:modified xsi:type="dcterms:W3CDTF">${now}</dcterms:modified>
+</cp:coreProperties>`,
+    },
+    {
+      name: 'docProps/app.xml',
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties">
+  <Application>OpenAgile Export</Application>
+</Properties>`,
+    },
+  ]);
+};
+
+const resolveGraphForExport = async (graphId) => {
+  const query = graphId
+    ? { graphId, status: 'COMPLETED' }
+    : { status: 'COMPLETED' };
+
+  const graph = await DependencyGraph.findOne(query).sort({ scannedAt: -1 }).lean();
+  if (!graph) {
+    throw new Error('Graph data not found');
+  }
+
+  if (!Array.isArray(graph.nodes) || graph.nodes.length === 0) {
+    throw new Error('Graph has no nodes to render');
+  }
+
+  return graph;
 };
 
 const generators = {
   'DOT': async ({ graphId, projectId }) => {
-    const graph = graphId 
-      ? await DependencyGraph.findOne({ graphId }).lean() 
-      : await DependencyGraph.findOne({ repoPath: { $exists: true } }).sort({ scannedAt: -1 }).lean();
-    
-    if (!graph) throw new Error('Graph data not found');
+    const graph = await resolveGraphForExport(graphId);
     const dotContent = toDOT(graph.nodes, graph.edges);
     return {
       filename: `dependency-graph-${Date.now()}.dot`,
@@ -52,21 +169,69 @@ const generators = {
   },
 
   'PNG': async ({ graphId }) => {
-    // Basic placeholder PNG generation using canvas
-    const canvas = createCanvas(800, 600);
+    const graph = await resolveGraphForExport(graphId);
+    const canvas = createCanvas(1200, 800);
     const ctx = canvas.getContext('2d');
-    
+
     ctx.fillStyle = '#12121F';
-    ctx.fillRect(0, 0, 800, 600);
-    
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '24px Inter';
-    ctx.textAlign = 'center';
-    ctx.fillText('Dependency Graph Visualization', 400, 280);
-    ctx.font = '16px Inter';
-    ctx.fillStyle = '#6B7280';
-    ctx.fillText('Automatic PNG rendering for complex DOT graphs', 400, 320);
-    ctx.fillText(`Graph ID: ${graphId || 'Latest'}`, 400, 350);
+    ctx.fillRect(0, 0, 1200, 800);
+    ctx.fillStyle = '#E5E7EB';
+    ctx.font = 'bold 28px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(`Dependency Graph Export`, 40, 50);
+    ctx.font = '16px sans-serif';
+    ctx.fillStyle = '#9CA3AF';
+    ctx.fillText(graph.repoPath, 40, 80);
+
+    const centerX = 600;
+    const centerY = 430;
+    const radius = Math.min(280, 120 + graph.nodes.length * 8);
+    const positions = new Map();
+    const nodes = graph.nodes.slice(0, 80);
+
+    nodes.forEach((node, index) => {
+      const angle = (Math.PI * 2 * index) / nodes.length;
+      positions.set(node.id, {
+        x: centerX + Math.cos(angle) * radius,
+        y: centerY + Math.sin(angle) * radius,
+      });
+    });
+
+    const edgeColor = '#374151';
+    (graph.edges || []).forEach((edge) => {
+      const source = positions.get(edge.source);
+      const target = positions.get(edge.target);
+      if (!source || !target) return;
+
+      ctx.strokeStyle = edgeColor;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(source.x, source.y);
+      ctx.lineTo(target.x, target.y);
+      ctx.stroke();
+    });
+
+    nodes.forEach((node) => {
+      const point = positions.get(node.id);
+      if (!point) return;
+
+      const palette = {
+        Core: '#4F8EF7',
+        Util: '#43D9AD',
+        API: '#F59E0B',
+        Cyclic: '#EF4444',
+      };
+
+      ctx.fillStyle = palette[node.type] || '#4F8EF7';
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#E5E7EB';
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(node.label.split(/[\\/]/).pop(), point.x, point.y + 22);
+    });
 
     return {
       filename: `dependency-graph-${Date.now()}.png`,
@@ -206,13 +371,31 @@ const generators = {
   'DOCX': async ({ projectId }) => {
     const project = await Project.findOne({ projectId });
     if (!project) throw new Error('Project not found');
-    const buffer = generateDocxBuffer(project);
+    const [issues, sprint] = await Promise.all([
+      Issue.find({ projectId, isDeleted: false }).sort({ createdAt: -1 }).lean(),
+      Sprint.findOne({ projectId, status: 'ACTIVE' }).lean(),
+    ]);
+    const buffer = await generateDocxBuffer({ project, issues, sprint });
     return {
       filename: `project-summary-${project.name.replace(/\s+/g, '-')}.docx`,
       buffer,
       mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     };
   }
+};
+
+const normalizeArtifactType = (type, { graphId, projectId }) => {
+  const upper = String(type || '').trim().toUpperCase();
+
+  if (!upper) {
+    return null;
+  }
+
+  if (upper === 'CSV') {
+    return graphId && !projectId ? 'GRAPH_CSV' : 'CSV';
+  }
+
+  return upper;
 };
 
 const generateExport = async (req, res, next) => {
@@ -223,16 +406,20 @@ const generateExport = async (req, res, next) => {
       return res.status(400).json({ error: 'Artifacts selection is required' });
     }
 
-    const isFullZip = artifacts.includes('FULL_ZIP') || artifacts.length > 1;
+    const normalizedArtifacts = artifacts
+      .map((type) => normalizeArtifactType(type, { projectId, graphId }))
+      .filter(Boolean);
+
+    const isFullZip = normalizedArtifacts.includes('FULL_ZIP') || normalizedArtifacts.length > 1;
     
     // Resolve which artifact types to generate
-    let typesToGenerate = artifacts.filter(t => t !== 'FULL_ZIP');
-    if (artifacts.includes('FULL_ZIP')) {
+    let typesToGenerate = normalizedArtifacts.filter((type) => type !== 'FULL_ZIP');
+    if (normalizedArtifacts.includes('FULL_ZIP')) {
       typesToGenerate = ['DOT', 'PNG', 'CSV', 'GRAPH_CSV', 'SPRINT_PDF', 'COMPARISON', 'DOCX'];
     }
 
     // Filter by available generators
-    typesToGenerate = typesToGenerate.filter(t => !!generators[t]);
+    typesToGenerate = [...new Set(typesToGenerate.filter((type) => !!generators[type]))];
 
     const results = await Promise.all(
       typesToGenerate.map(async (type) => {

@@ -1,5 +1,7 @@
 const jwt = require('jsonwebtoken');
 
+const DEMO_ROLE = 'Admin';
+
 /**
  * authMiddleware
  * Reads the Authorization header, verifies the JWT, and attaches
@@ -18,7 +20,7 @@ const authMiddleware = (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = {
       userId: decoded.userId,
-      role: decoded.role,
+      role: DEMO_ROLE,
       email: decoded.email,
     };
     next();

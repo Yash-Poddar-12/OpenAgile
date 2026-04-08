@@ -215,8 +215,15 @@ export const useScan = (initialScanId = null) => {
   const exportGraph = async (format) => {
     if (!scanId || scanStatus !== 'completed') return;
     try {
+      const artifactMap = {
+        dot: 'DOT',
+        csv: 'GRAPH_CSV',
+        png: 'PNG',
+      };
+      const artifactType = artifactMap[String(format).toLowerCase()] || String(format).toUpperCase();
+
       const response = await api.post(`/export`, {
-        artifacts: [format],
+        artifacts: [artifactType],
         graphId: scanId
       }, { responseType: 'blob' });
 
@@ -224,14 +231,14 @@ export const useScan = (initialScanId = null) => {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `dependency_graph_${scanId.substring(0,8)}.${format.toLowerCase()}`);
+      link.setAttribute('download', `dependency_graph_${scanId.substring(0,8)}.${String(format).toLowerCase()}`);
       document.body.appendChild(link);
       link.click();
       link.remove();
       
       showToast('success', `Exported to ${format}`);
     } catch (err) {
-      showToast('error', `Failed to export ${format} - Export module not active`);
+      showToast('error', err.response?.data?.error || `Failed to export ${format}`);
     }
   };
 

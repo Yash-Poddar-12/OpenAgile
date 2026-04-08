@@ -16,10 +16,6 @@ const requireRole = (...allowedRoles) => {
       return res.status(401).json({ error: 'No token provided' });
     }
 
-    if (process.env.NODE_ENV === 'development') {
-      return next();
-    }
-
     if (!allowedRoles.includes(req.user.role)) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }

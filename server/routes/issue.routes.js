@@ -6,7 +6,8 @@ const {
   getIssue, 
   updateIssue, 
   updateStatus, 
-  deleteIssue 
+  deleteIssue,
+  addComment,
 } = require('../controllers/issueController');
 const authMiddleware = require('../middleware/authMiddleware');
 const { requireRole } = require('../middleware/roleMiddleware');
@@ -26,6 +27,9 @@ router.patch('/:id', authMiddleware, requireRole('Admin', 'ProjectManager', 'Dev
 
 // PATCH /api/v1/issues/:id/status (Admin, PM, Developer)
 router.patch('/:id/status', authMiddleware, requireRole('Admin', 'ProjectManager', 'Developer'), updateStatus);
+
+// POST /api/v1/issues/:id/comments
+router.post('/:id/comments', authMiddleware, requireRole('Admin', 'ProjectManager', 'Developer'), addComment);
 
 // DELETE /api/v1/issues/:id (Admin, PM only)
 router.delete('/:id', authMiddleware, requireRole('Admin', 'ProjectManager'), deleteIssue);

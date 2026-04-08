@@ -1,6 +1,5 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
 import { 
   LayoutDashboard, FolderKanban, Shield, Activity,
   Download, AlertCircle, Columns3, GitBranch,
@@ -8,22 +7,20 @@ import {
 } from 'lucide-react';
 
 const NAV_ITEMS = [
-  { label: 'Dashboard', path: '/admin', icon: LayoutDashboard, roles: ['Admin'] },
-  { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: ['ProjectManager'] },
-  { label: 'Projects', path: '/projects', icon: FolderKanban, roles: ['Admin', 'ProjectManager', 'Developer', 'RepoAnalyst', 'Viewer'] },
-  { label: 'Repository Analysis', path: '/filemap', icon: GitBranch, roles: ['Admin', 'ProjectManager', 'Developer', 'RepoAnalyst', 'Viewer'] },
-  { label: 'Issues', path: '/issues', icon: AlertCircle, roles: ['Admin', 'ProjectManager', 'Developer', 'RepoAnalyst', 'Viewer'] },
-  { label: 'Kanban', path: '/kanban', icon: Columns3, roles: ['Admin', 'ProjectManager', 'Developer', 'RepoAnalyst', 'Viewer'] },
-  { label: 'Export', path: '/export', icon: Download, roles: ['Admin', 'ProjectManager', 'RepoAnalyst'] },
-  { label: 'Analytics', path: '/analytics', icon: Activity, roles: ['Admin', 'ProjectManager', 'Developer', 'RepoAnalyst'] },
-  { label: 'Roles & Permissions', path: '/roles', icon: Shield, roles: ['Admin'] },
+  { label: 'Admin Dashboard', path: '/admin', icon: LayoutDashboard },
+  { label: 'PM Dashboard', path: '/dashboard', icon: LayoutDashboard },
+  { label: 'Projects', path: '/projects', icon: FolderKanban },
+  { label: 'Repository Analysis', path: '/filemap', icon: GitBranch },
+  { label: 'Issues', path: '/issues', icon: AlertCircle },
+  { label: 'Kanban', path: '/kanban', icon: Columns3 },
+  { label: 'Export', path: '/export', icon: Download },
+  { label: 'Analytics', path: '/analytics', icon: Activity },
+  { label: 'Roles & Permissions', path: '/roles', icon: Shield },
 ];
 
 export const Sidebar = ({ isOpen, onClose }) => {
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'Admin';
-  const role = user?.role || 'Viewer';
-  const links = NAV_ITEMS.filter((link) => link.roles.includes(role));
+  const isAdmin = true;
+  const links = NAV_ITEMS;
 
   const asideClass = isAdmin
     ? "bg-[#252537] border-r border-[#2E2E42]"

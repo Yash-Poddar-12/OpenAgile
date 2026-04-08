@@ -1,5 +1,11 @@
 const User = require('../models/User');
 const Role = require('../models/Role');
+const DEMO_ROLE = 'Admin';
+
+const normalizeUserForDemo = (user) => ({
+  ...(user.toObject ? user.toObject() : user),
+  role: DEMO_ROLE,
+});
 
 /**
  * GET /api/v1/users
@@ -8,7 +14,26 @@ const Role = require('../models/Role');
 const listUsers = async (req, res, next) => {
   try {
     const users = await User.find({}, { passwordHash: 0 }).lean();
-    return res.status(200).json({ users });
+    return res.status(200).json({
+      users: users.map(normalizeUserForDemo),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const listActiveUsers = async (req, res, next) => {
+  try {
+    const users = await User.find(
+      { isActive: true },
+      { passwordHash: 0 }
+    )
+      .sort({ name: 1 })
+      .lean();
+
+    return res.status(200).json({
+      users: users.map(normalizeUserForDemo),
+    });
   } catch (err) {
     next(err);
   }
@@ -42,7 +67,9 @@ const updateRole = async (req, res, next) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    return res.status(200).json({ user });
+    return res.status(200).json({
+      user: normalizeUserForDemo(user),
+    });
   } catch (err) {
     next(err);
   }
@@ -70,4 +97,4 @@ const deactivateUser = async (req, res, next) => {
   }
 };
 
-module.exports = { listUsers, updateRole, deactivateUser };
+module.exports = { listUsers, listActiveUsers, updateRole, deactivateUser };

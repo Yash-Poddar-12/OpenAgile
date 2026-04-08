@@ -4,6 +4,15 @@ import { ChevronDown, ChevronRight, Download, Activity, TrendingUp, Database, Gi
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import api from '../services/api';
 
+const getRepoLabel = (repoPath, fallback = 'Unknown Repository') => {
+  if (typeof repoPath !== 'string' || repoPath.trim().length === 0) {
+    return fallback;
+  }
+
+  const segments = repoPath.split(/[/\\]/).filter(Boolean);
+  return segments[segments.length - 1] || repoPath;
+};
+
 export function AnalyticsPage() {
   const navigate = useNavigate();
   const [expandedRow, setExpandedRow] = useState(null);
@@ -67,7 +76,7 @@ export function AnalyticsPage() {
             <select value={selectedRepo} onChange={(e) => setSelectedRepo(e.target.value)} className="appearance-none flex items-center gap-2 bg-[#252538] hover:bg-[#2a2a40] border border-[#3a3a50] text-white px-4 py-2.5 pr-10 rounded-lg transition-colors min-w-[220px]">
               <option value="">All Repositories</option>
               {repoOptions.map((repoPath) => (
-                <option key={repoPath} value={repoPath}>{repoPath.split(/[/\\]/).pop()}</option>
+                <option key={repoPath} value={repoPath}>{getRepoLabel(repoPath)}</option>
               ))}
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af] pointer-events-none" />
@@ -90,10 +99,10 @@ export function AnalyticsPage() {
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              {[
-                { title: 'Total Scans', value: analytics.totalScans.toLocaleString(), icon: <Activity className="w-6 h-6" />, color: '#3b82f6' },
-                { title: 'Average Cycles Detected', value: analytics.avgCyclesDetected, icon: <TrendingUp className="w-6 h-6" />, color: '#10b981' },
-                { title: 'Most Scanned Repo', value: analytics.mostScannedRepo.split(/[/\\]/).pop(), icon: <Database className="w-6 h-6" />, color: '#8b5cf6' },
+                {[
+                  { title: 'Total Scans', value: analytics.totalScans.toLocaleString(), icon: <Activity className="w-6 h-6" />, color: '#3b82f6' },
+                  { title: 'Average Cycles Detected', value: analytics.avgCyclesDetected, icon: <TrendingUp className="w-6 h-6" />, color: '#10b981' },
+                  { title: 'Most Scanned Repo', value: getRepoLabel(analytics.mostScannedRepo, 'None'), icon: <Database className="w-6 h-6" />, color: '#8b5cf6' },
               ].map((card) => (
                 <div key={card.title} className="bg-[#252538] border border-[#3a3a50] rounded-lg p-6">
                   <div className="flex items-start justify-between">
@@ -146,7 +155,7 @@ export function AnalyticsPage() {
                           <td className="py-4 px-4">
                             {expandedRow === (scan.graphId || scan._id) ? <ChevronDown className="w-4 h-4 text-[#9ca3af]" /> : <ChevronRight className="w-4 h-4 text-[#9ca3af]" />}
                           </td>
-                          <td className="py-4 px-6"><div className="flex items-center gap-2"><GitBranch className="w-4 h-4 text-[#3b82f6]" /><span className="text-white">{scan.repoPath.split(/[/\\]/).pop()}</span></div></td>
+                          <td className="py-4 px-6"><div className="flex items-center gap-2"><GitBranch className="w-4 h-4 text-[#3b82f6]" /><span className="text-white">{getRepoLabel(scan.repoPath)}</span></div></td>
                           <td className="py-4 px-6 text-[#9ca3af]">{new Date(scan.scannedAt).toLocaleString()}</td>
                           <td className="py-4 px-6 text-right text-white">{(scan.nodesCount || 0).toLocaleString()}</td>
                           <td className="py-4 px-6 text-right text-white">{scan.edgesCount || 0}</td>

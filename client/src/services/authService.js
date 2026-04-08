@@ -11,6 +11,11 @@ const authService = {
     return response.data;
   },
 
+  requestReset: async (email) => {
+    const response = await api.post('/auth/request-reset', { email });
+    return response.data;
+  },
+
   getMe: async () => {
     const response = await api.get('/auth/me');
     return response.data;

@@ -34,3 +34,8 @@ export const deleteIssue = async (id) => {
   const response = await api.delete(`/issues/${id}`);
   return response.data;
 };
+
+export const addIssueComment = async (id, content) => {
+  const response = await api.post(`/issues/${id}/comments`, { content });
+  return response.data;
+};

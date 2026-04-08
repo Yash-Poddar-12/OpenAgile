@@ -14,10 +14,6 @@ const PrivateRoute = ({ element, allowedRoles }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (import.meta.env.DEV) {
-    return element;
-  }
-
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
     return <Navigate to="/unauthorized" replace />;
   }

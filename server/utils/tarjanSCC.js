@@ -119,11 +119,10 @@ function buildReverseMap(adjacencyList) {
   return reverseMap;
 }
 
-module.exports = {
-  tarjanSCC,
-  isCyclic,
-  buildReverseMap
-};
+module.exports = tarjanSCC;
+module.exports.tarjanSCC = tarjanSCC;
+module.exports.isCyclic = isCyclic;
+module.exports.buildReverseMap = buildReverseMap;
 
 // Inline Test
 if (require.main === module) {

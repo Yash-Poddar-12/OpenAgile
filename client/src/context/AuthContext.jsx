@@ -2,6 +2,16 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import authService from '../services/authService';
 
 const AuthContext = createContext(null);
+const DEMO_ROLE = 'Admin';
+
+const normalizeUser = (user) => (
+  user
+    ? {
+        ...user,
+        role: DEMO_ROLE,
+      }
+    : null
+);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -15,7 +25,7 @@ export const AuthProvider = ({ children }) => {
         try {
           const data = await authService.getMe();
           setToken(storedToken);
-          setUser(data.user);
+          setUser(normalizeUser(data.user));
         } catch (error) {
           console.error("Failed to rehydrate auth:", error);
           localStorage.removeItem('filemap_token');
@@ -32,17 +42,17 @@ export const AuthProvider = ({ children }) => {
   const register = useCallback(async (name, email, password) => {
     const data = await authService.register(name, email, password);
     setToken(data.token);
-    setUser(data.user);
+    setUser(normalizeUser(data.user));
     localStorage.setItem('filemap_token', data.token);
-    return data.user.role;
+    return DEMO_ROLE;
   }, []);
 
   const login = useCallback(async (email, password) => {
     const data = await authService.login(email, password);
     setToken(data.token);
-    setUser(data.user);
+    setUser(normalizeUser(data.user));
     localStorage.setItem('filemap_token', data.token);
-    return data.user.role;
+    return DEMO_ROLE;
   }, []);
 
   const logout = useCallback(() => {

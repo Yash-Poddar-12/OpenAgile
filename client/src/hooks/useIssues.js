@@ -87,7 +87,7 @@ export const useIssueDependencies = (selectedProjectId) => {
       try {
         const [pRes, uRes] = await Promise.all([
           api.get('/projects'),
-          api.get('/users')
+          api.get('/users/active')
         ]);
         setProjects(pRes.data.projects || []);
         setUsers(uRes.data.users || []);

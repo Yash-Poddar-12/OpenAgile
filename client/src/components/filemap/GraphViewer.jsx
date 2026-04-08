@@ -2,7 +2,15 @@ import React, { useRef, useState, useCallback, useEffect } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { ZoomIn, ZoomOut, Maximize2, Search, GitBranch } from 'lucide-react';
 
-const GraphViewer = ({ graph, scanStatus, progress, progressMessage }) => {
+const GraphViewer = ({
+  graph,
+  scanStatus,
+  progress,
+  progressMessage,
+  showLabels = true,
+  showCycles = true,
+  animate = false,
+}) => {
   const fgRef = useRef();
   const containerRef = useRef();
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -13,6 +21,10 @@ const GraphViewer = ({ graph, scanStatus, progress, progressMessage }) => {
 
   const isScanning = scanStatus === 'scanning';
   const isCompleted = scanStatus === 'completed';
+  const getNodeLabel = (node) => {
+    const rawLabel = node?.label || node?.id || 'Unknown file';
+    return String(rawLabel);
+  };
 
   // Resize observer to keep the canvas filling the container automatically
   useEffect(() => {
@@ -44,7 +56,7 @@ const GraphViewer = ({ graph, scanStatus, progress, progressMessage }) => {
     const newHLNodes = new Set();
     
     graph.nodes.forEach(node => {
-      if (node.label.toLowerCase().includes(term)) {
+      if (getNodeLabel(node).toLowerCase().includes(term)) {
         newHLNodes.add(node.id);
       }
     });
@@ -54,6 +66,10 @@ const GraphViewer = ({ graph, scanStatus, progress, progressMessage }) => {
 
   // Graph styling
   const nodeColor = (node) => {
+    if (!showCycles && node.type === 'Cyclic') {
+      return '#4F8EF7';
+    }
+
     switch(node.type) {
       case 'Core':   return '#4F8EF7';
       case 'Util':   return '#43D9AD';
@@ -244,7 +260,7 @@ const GraphViewer = ({ graph, scanStatus, progress, progressMessage }) => {
                   ctx.fill();
 
                   // Custom Cyclic Pulsing Ring Animation
-                  if (node.type === 'Cyclic') {
+                  if (showCycles && node.type === 'Cyclic' && animate) {
                     if (!node.__pulse) node.__pulse = Math.random() * 1000; // Offset staggering
                     
                     const time = Date.now() + node.__pulse;
@@ -268,8 +284,8 @@ const GraphViewer = ({ graph, scanStatus, progress, progressMessage }) => {
                   }
 
                   // Label Rendering (only if zoomed in)
-                  if (globalScale > 1.5 && isHighlighted) {
-                    const label = node.label.split(/[/\\]/).pop(); // basename
+                  if (showLabels && globalScale > 1.5 && isHighlighted) {
+                    const label = getNodeLabel(node).split(/[/\\]/).pop(); // basename
                     const fontSize = Math.max(12 / globalScale, 4);
                     
                     ctx.font = `${fontSize}px Inter, sans-serif`;
@@ -292,6 +308,7 @@ const GraphViewer = ({ graph, scanStatus, progress, progressMessage }) => {
                    // To explicitly set them:
                    return undefined; 
                 }}
+                cooldownTicks={animate ? 180 : 60}
              />
              
              {/* Floating Tooltip Custom Overlay (optional enhancement over native canvas title) */}

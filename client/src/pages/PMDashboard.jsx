@@ -45,7 +45,7 @@ function MetricCard({ title, value, icon, accentColor = '#4F8EF7', showProgress 
 }
 
 function StatusBadge({ status }) {
-  const isActive = status === 'Active';
+  const isActive = status === 'ACTIVE' || status === 'Active';
   return (
     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${isActive ? 'bg-[#43D9AD20] text-[#43D9AD]' : 'bg-[#6b728080] text-[#9ca3af]'}`}>
       <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${isActive ? 'bg-[#43D9AD]' : 'bg-[#9ca3af]'}`} />
@@ -84,12 +84,14 @@ export function PMDashboard() {
             {projects.map((project) => (
               <tr key={project.projectId || project._id} className="hover:bg-[#2a2a3e] transition-colors">
                 <td className="px-6 py-4"><span className="text-white font-medium">{project.name}</span></td>
-                <td className="px-6 py-4"><StatusBadge status={project.status || 'Active'} /></td>
-                <td className="px-6 py-4"><span className="text-white">-</span></td>
-                <td className="px-6 py-4"><span className="text-[#9ca3af]">-</span></td>
+                <td className="px-6 py-4"><StatusBadge status={project.status || 'ACTIVE'} /></td>
+                <td className="px-6 py-4"><span className="text-white">{project.openIssueCount ?? project.issueCount ?? 0}</span></td>
+                <td className="px-6 py-4"><span className="text-[#9ca3af]">{project.sprintName || 'No sprint'}</span></td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
-                    <button onClick={() => archiveProject(project.projectId)} className="p-1.5 hover:bg-[#9ca3af20] rounded text-[#9ca3af] transition-colors"><Archive className="w-4 h-4" /></button>
+                    {project.status === 'ACTIVE' && (
+                      <button onClick={() => archiveProject(project.projectId)} className="p-1.5 hover:bg-[#9ca3af20] rounded text-[#9ca3af] transition-colors"><Archive className="w-4 h-4" /></button>
+                    )}
                   </div>
                 </td>
               </tr>

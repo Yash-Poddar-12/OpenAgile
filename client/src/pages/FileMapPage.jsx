@@ -6,6 +6,8 @@ import { useProjects } from '../hooks/useProjects';
 import { useScan } from '../hooks/useScan';
 import { useToast } from '../context/ToastContext';
 
+const WORKSPACE_STORAGE_KEY = 'openagile_current_workspace_project_id';
+
 export function FileMapPage() {
   const [searchParams] = useSearchParams();
   const searchParamKey = searchParams.toString();
@@ -42,29 +44,36 @@ export function FileMapPage() {
   );
 
   useEffect(() => {
-    if (projects.length === 0 || selectedProjectId) {
+    if (projects.length === 0) {
       return;
     }
 
     const projectIdFromQuery = searchParams.get('projectId');
+    const workspaceProjectId = localStorage.getItem(WORKSPACE_STORAGE_KEY);
     const initialProject = projectIdFromQuery
       ? projects.find((project) => project.projectId === projectIdFromQuery)
+      : workspaceProjectId
+        ? projects.find((project) => project.projectId === workspaceProjectId)
       : projects.find((project) => project.repositoryPath) || projects[0];
 
     if (initialProject) {
-      setSelectedProjectId(initialProject.projectId);
+      if (initialProject.projectId !== selectedProjectId) {
+        setSelectedProjectId(initialProject.projectId);
+      }
       setRepoPath(searchParams.get('repoPath') || initialProject.repositoryPath || '');
     }
   }, [projects, searchParamKey, searchParams, selectedProjectId]);
 
   useEffect(() => {
+    if (selectedProjectId) {
+      localStorage.setItem(WORKSPACE_STORAGE_KEY, selectedProjectId);
+    }
+  }, [selectedProjectId]);
+
+  useEffect(() => {
     const repoPathFromQuery = searchParams.get('repoPath');
     const scanIdFromQuery = searchParams.get('scanId');
     const projectIdFromQuery = searchParams.get('projectId');
-
-    if (projectIdFromQuery && projectIdFromQuery !== selectedProjectId && projects.some((project) => project.projectId === projectIdFromQuery)) {
-      return;
-    }
 
     const targetRepoPath = repoPathFromQuery || selectedProject?.repositoryPath || '';
     if (targetRepoPath) {
@@ -89,6 +98,7 @@ export function FileMapPage() {
 
   const handleProjectChange = async (projectId) => {
     setSelectedProjectId(projectId);
+    localStorage.setItem(WORKSPACE_STORAGE_KEY, projectId);
 
     const nextProject = projects.find((project) => project.projectId === projectId);
     const nextRepoPath = nextProject?.repositoryPath || '';
@@ -215,7 +225,15 @@ export function FileMapPage() {
         </div>
       </div>
 
-      <GraphViewer graph={graph} scanStatus={scanStatus} progress={progress} progressMessage={progressMessage} />
+      <GraphViewer
+        graph={graph}
+        scanStatus={scanStatus}
+        progress={progress}
+        progressMessage={progressMessage}
+        showLabels={showLabels}
+        showCycles={showCycles}
+        animate={animate}
+      />
 
       <div className="w-[300px] bg-[#2A2A3C] border-l border-[#3E3E52] p-4 flex flex-col gap-4 overflow-y-auto">
         <div className="bg-[#1E1E2E] border border-[#3E3E52] rounded p-4">

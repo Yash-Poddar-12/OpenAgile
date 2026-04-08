@@ -18,12 +18,7 @@ import { UnauthorizedPage } from './pages/UnauthorizedPage';
 const FallbackRedirect = () => {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  switch (user.role) {
-    case 'Admin': return <Navigate to="/admin" replace />;
-    case 'ProjectManager': return <Navigate to="/dashboard" replace />;
-    case 'RepoAnalyst': return <Navigate to="/filemap" replace />;
-    default: return <Navigate to="/issues" replace />;
-  }
+  return <Navigate to="/admin" replace />;
 };
 
 export default function App() {
@@ -35,18 +30,18 @@ export default function App() {
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
       
       <Route element={<DashboardLayout />}>
-        <Route path="/admin" element={<PrivateRoute element={<AdminDashboard />} allowedRoles={['Admin']} />} />
+        <Route path="/admin" element={<PrivateRoute element={<AdminDashboard />} />} />
         <Route path="/admin/dashboard" element={<Navigate to="/admin" replace />} />
         <Route path="/admin/roles" element={<Navigate to="/roles" replace />} />
         
-        <Route path="/dashboard" element={<PrivateRoute element={<PMDashboard />} allowedRoles={['Admin', 'ProjectManager']} />} />
+        <Route path="/dashboard" element={<PrivateRoute element={<PMDashboard />} />} />
         <Route path="/projects" element={<PrivateRoute element={<ProjectsPage />} />} />
         <Route path="/issues" element={<PrivateRoute element={<IssuesPage />} />} />
         <Route path="/kanban" element={<PrivateRoute element={<KanbanPage />} />} />
         <Route path="/filemap" element={<PrivateRoute element={<FileMapPage />} />} />
-        <Route path="/export" element={<PrivateRoute element={<ExportPage />} allowedRoles={['Admin', 'ProjectManager', 'RepoAnalyst']} />} />
-        <Route path="/analytics" element={<PrivateRoute element={<AnalyticsPage />} allowedRoles={['Admin', 'ProjectManager', 'RepoAnalyst']} />} />
-        <Route path="/roles" element={<PrivateRoute element={<RolesPage />} allowedRoles={['Admin']} />} />
+        <Route path="/export" element={<PrivateRoute element={<ExportPage />} />} />
+        <Route path="/analytics" element={<PrivateRoute element={<AnalyticsPage />} />} />
+        <Route path="/roles" element={<PrivateRoute element={<RolesPage />} />} />
         
         <Route path="*" element={<FallbackRedirect />} />
       </Route>

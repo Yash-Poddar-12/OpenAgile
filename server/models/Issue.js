@@ -1,6 +1,30 @@
 const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
 
+const commentSchema = new mongoose.Schema(
+  {
+    commentId: {
+      type: String,
+      default: uuidv4,
+    },
+    authorId: {
+      type: String,
+      required: true,
+    },
+    content: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: [2000, 'Comment cannot exceed 2000 characters'],
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false }
+);
+
 const issueSchema = new mongoose.Schema(
   {
     issueId: {
@@ -63,6 +87,10 @@ const issueSchema = new mongoose.Schema(
     updatedAt: {
       type: Date,
       default: Date.now,
+    },
+    comments: {
+      type: [commentSchema],
+      default: [],
     },
   },
   { versionKey: false }

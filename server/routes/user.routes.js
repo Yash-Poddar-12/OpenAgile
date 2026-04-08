@@ -1,12 +1,16 @@
 const express = require('express');
 const router = express.Router();
 
-const { listUsers, updateRole, deactivateUser } = require('../controllers/userController');
+const { listUsers, listActiveUsers, updateRole, deactivateUser } = require('../controllers/userController');
 const authMiddleware = require('../middleware/authMiddleware');
 const { requireRole } = require('../middleware/roleMiddleware');
 
-// All user management routes require authentication + Admin role
-router.use(authMiddleware, requireRole('Admin'));
+router.use(authMiddleware);
+
+router.get('/active', listActiveUsers);
+
+// All user management routes below require Admin role
+router.use(requireRole('Admin'));
 
 // GET /api/v1/users
 router.get('/', listUsers);

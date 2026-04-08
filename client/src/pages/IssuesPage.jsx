@@ -18,9 +18,11 @@ import {
 import Modal from '../components/common/Modal';
 import { useIssues, useIssueDependencies } from '../hooks/useIssues';
 import { useToast } from '../context/ToastContext';
+import { addIssueComment, getIssue as getIssueDetails } from '../services/issueService';
 
 const ALL_PROJECTS = 'all-projects';
 const ALL_SPRINTS = 'all-sprints';
+const WORKSPACE_STORAGE_KEY = 'openagile_current_workspace_project_id';
 
 const priorityColor = {
   High: 'bg-red-500/20 text-red-400 border-red-500/30',
@@ -71,7 +73,7 @@ const issueMatchesCurrentFilters = (issue, filters, selectedAssignees) => {
   return true;
 };
 
-function IssueDetailPanel({ issue, onClose }) {
+function IssueDetailPanel({ issue, onClose, onAddComment, isSubmittingComment = false, isLoading = false }) {
   const [isVisible, setIsVisible] = useState(false);
   const [comment, setComment] = useState('');
 
@@ -92,6 +94,17 @@ function IssueDetailPanel({ issue, onClose }) {
   const activity = issue.activity || [];
   const assigneeLabel = issue.assigneeName || issue.assigneeId || 'Unassigned';
   const projectLabel = issue.projectName || issue.projectId || 'No project';
+
+  const handleCommentSubmit = async () => {
+    if (!comment.trim() || !onAddComment) {
+      return;
+    }
+
+    const wasSaved = await onAddComment(comment.trim());
+    if (wasSaved) {
+      setComment('');
+    }
+  };
 
   return (
     <>
@@ -159,8 +172,9 @@ function IssueDetailPanel({ issue, onClose }) {
                   <MessageSquare className="w-4 h-4" />Comments ({comments.length})
                 </h3>
                 <div className="space-y-4">
+                  {isLoading && <p className="text-sm text-gray-500 italic">Loading issue details...</p>}
                   {comments.map((entry) => (
-                    <div key={entry.id} className="flex gap-3">
+                    <div key={entry.commentId || entry.id} className="flex gap-3">
                       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#10B981] flex items-center justify-center text-white text-xs flex-shrink-0">{entry.avatar}</div>
                       <div className="flex-1 bg-[#252537] rounded-lg p-3">
                         <div className="flex items-center gap-2 mb-1">
@@ -174,13 +188,23 @@ function IssueDetailPanel({ issue, onClose }) {
                   {comments.length === 0 && <p className="text-sm text-gray-500 italic">No comments yet.</p>}
                   <div className="flex gap-3 pt-2">
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#10B981] flex items-center justify-center text-white text-xs flex-shrink-0">ME</div>
-                    <input
-                      type="text"
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                      placeholder="Add a comment..."
-                      className="flex-1 bg-[#252537] text-gray-300 px-4 py-2 rounded-lg border border-[#33334a] focus:border-[#3B82F6] focus:outline-none text-sm placeholder-gray-500"
-                    />
+                    <div className="flex-1 flex gap-2">
+                      <input
+                        type="text"
+                        value={comment}
+                        onChange={(e) => setComment(e.target.value)}
+                        placeholder="Add a comment..."
+                        className="flex-1 bg-[#252537] text-gray-300 px-4 py-2 rounded-lg border border-[#33334a] focus:border-[#3B82F6] focus:outline-none text-sm placeholder-gray-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCommentSubmit}
+                        disabled={isSubmittingComment || !comment.trim()}
+                        className="rounded-lg bg-[#3B82F6] px-4 py-2 text-sm text-white transition-colors hover:bg-[#2563EB] disabled:opacity-50"
+                      >
+                        {isSubmittingComment ? 'Saving...' : 'Post'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -225,6 +249,9 @@ export function IssuesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingIssue, setEditingIssue] = useState(null);
   const [formData, setFormData] = useState(defaultFormState);
+  const [detailIssue, setDetailIssue] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
 
   const { projects: allProjects, sprints, users } = useIssueDependencies(selectedProject !== ALL_PROJECTS ? selectedProject : null);
 
@@ -270,6 +297,53 @@ export function IssuesPage() {
     return resolvedIssues.filter((issue) => selectedAssignees.includes(issue.assigneeId));
   }, [resolvedIssues, selectedAssignees]);
 
+  const loadIssueDetail = async (issueId) => {
+    if (!issueId) {
+      setDetailIssue(null);
+      return;
+    }
+
+    try {
+      setDetailLoading(true);
+      const response = await getIssueDetails(issueId);
+      const issue = response.issue || {};
+      const activityLog = response.activityLog || [];
+
+      setDetailIssue({
+        ...issue,
+        projectName: projectLookup.get(issue.projectId)?.name || issue.projectId,
+        assigneeName: userLookup.get(issue.assigneeId)?.name || issue.assigneeId || 'Unassigned',
+        requirements: issue.requirements || [],
+        comments: (issue.comments || []).map((entry) => ({
+          ...entry,
+          id: entry.commentId,
+          author: entry.authorName || entry.authorId || 'Unknown',
+          avatar: (entry.authorName || entry.authorId || 'UN').substring(0, 2).toUpperCase(),
+          timestamp: new Date(entry.createdAt).toLocaleString(),
+        })),
+        activity: activityLog.map((entry) => ({
+          id: entry.logId,
+          user: entry.performer?.name || entry.performedBy || 'System',
+          action: entry.action.replaceAll('_', ' ').toLowerCase(),
+          timestamp: new Date(entry.timestamp).toLocaleString(),
+        })),
+      });
+    } catch (err) {
+      showToast('error', 'Failed to load issue details');
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedIssue?.issueId) {
+      setDetailIssue(null);
+      return;
+    }
+
+    loadIssueDetail(selectedIssue.issueId);
+  }, [selectedIssue?.issueId, projectLookup, userLookup]);
+
   useEffect(() => {
     if (selectedProject === ALL_PROJECTS) {
       setSelectedSprint(ALL_SPRINTS);
@@ -284,10 +358,31 @@ export function IssuesPage() {
 
   useEffect(() => {
     const projectIdFromQuery = searchParams.get('projectId');
-    if (projectIdFromQuery && allProjects.some((project) => project.projectId === projectIdFromQuery)) {
-      setSelectedProject(projectIdFromQuery);
+    const workspaceProjectId = localStorage.getItem(WORKSPACE_STORAGE_KEY);
+    const preferredProjectId = projectIdFromQuery || workspaceProjectId;
+
+    if (preferredProjectId && allProjects.some((project) => project.projectId === preferredProjectId)) {
+      setSelectedProject(preferredProjectId);
+      return;
+    }
+
+    if (allProjects.length === 0) {
+      setSelectedProject(ALL_PROJECTS);
+      return;
+    }
+
+    if (!preferredProjectId) {
+      setSelectedProject(ALL_PROJECTS);
     }
   }, [allProjects, searchParamKey, searchParams]);
+
+  useEffect(() => {
+    if (selectedProject && selectedProject !== ALL_PROJECTS) {
+      localStorage.setItem(WORKSPACE_STORAGE_KEY, selectedProject);
+      return;
+    }
+    localStorage.removeItem(WORKSPACE_STORAGE_KEY);
+  }, [selectedProject]);
 
   const openCreateModal = ({ projectId, status } = {}) => {
     const fallbackProjectId = projectId || (selectedProject !== ALL_PROJECTS ? selectedProject : allProjects[0]?.projectId || '');
@@ -376,6 +471,25 @@ export function IssuesPage() {
 
     if (!issueMatchesCurrentFilters(savedIssue, filters, selectedAssignees)) {
       showToast('info', 'Issue saved. Current filters are hiding it from the list.');
+    }
+  };
+
+  const handleAddComment = async (content) => {
+    if (!detailIssue?.issueId) {
+      return false;
+    }
+
+    try {
+      setCommentSubmitting(true);
+      await addIssueComment(detailIssue.issueId, content);
+      await loadIssueDetail(detailIssue.issueId);
+      showToast('success', 'Comment added');
+      return true;
+    } catch (err) {
+      showToast('error', err.response?.data?.error || 'Failed to add comment');
+      return false;
+    } finally {
+      setCommentSubmitting(false);
     }
   };
 
@@ -504,7 +618,16 @@ export function IssuesPage() {
         </div>
       </div>
 
-      <IssueDetailPanel issue={selectedIssue} onClose={() => setSelectedIssue(null)} />
+      <IssueDetailPanel
+        issue={detailIssue || selectedIssue}
+        onClose={() => {
+          setSelectedIssue(null);
+          setDetailIssue(null);
+        }}
+        onAddComment={handleAddComment}
+        isSubmittingComment={commentSubmitting}
+        isLoading={detailLoading}
+      />
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingIssue ? 'Edit Issue' : 'Create New Issue'}>
         <form onSubmit={handleModalSubmit} className="space-y-4">

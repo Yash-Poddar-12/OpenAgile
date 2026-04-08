@@ -16,17 +16,43 @@ export const usePMDashboard = () => {
       const [pRes, iRes, uRes] = await Promise.all([
         api.get('/projects'),
         api.get('/issues'),
-        api.get('/users').catch(() => ({ data: { users: [] } }))
+        api.get('/users/active').catch(() => ({ data: { users: [] } }))
       ]);
 
       const allProjects = pRes.data.projects || [];
       const allIssues = iRes.data.issues || [];
       const allUsers = uRes.data.users || [];
-      setProjects(allProjects);
+      const sprintResponses = await Promise.all(
+        allProjects.map((project) =>
+          api.get(`/sprints?projectId=${project.projectId}`)
+            .then((response) => ({ projectId: project.projectId, sprints: response.data.sprints || [] }))
+            .catch(() => ({ projectId: project.projectId, sprints: [] }))
+        )
+      );
+
+      const sprintLookup = new Map(
+        sprintResponses.map(({ projectId, sprints }) => [projectId, sprints])
+      );
+
+      const hydratedProjects = allProjects.map((project) => {
+        const projectIssues = allIssues.filter((issue) => issue.projectId === project.projectId);
+        const projectSprints = sprintLookup.get(project.projectId) || [];
+        const activeSprint = projectSprints.find((sprint) => sprint.status === 'ACTIVE');
+        const latestSprint = projectSprints[projectSprints.length - 1] || null;
+
+        return {
+          ...project,
+          issueCount: projectIssues.length,
+          openIssueCount: projectIssues.filter((issue) => issue.status !== 'Done').length,
+          sprintName: activeSprint?.name || latestSprint?.name || 'No sprint',
+        };
+      });
+
+      setProjects(hydratedProjects);
       setIssues(allIssues);
       setUsers(allUsers);
 
-      const activeProjects = allProjects.filter(p => p.status === 'ACTIVE');
+      const activeProjects = hydratedProjects.filter(p => p.status === 'ACTIVE');
       if (activeProjects.length > 0) {
         const logPromises = activeProjects.slice(0, 3).map(p => 
           api.get(`/activity?projectId=${p.projectId}`).catch(() => null)

@@ -3,12 +3,17 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Network, Lock, Mail, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import Modal from '../components/common/Modal';
+import authService from '../services/authService';
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [isResetSubmitting, setIsResetSubmitting] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuth();
   const { showToast } = useToast();
@@ -39,6 +44,22 @@ export function LoginPage() {
       setErrorMsg(err.response?.data?.error || 'Login failed');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handlePasswordResetRequest = async (event) => {
+    event.preventDefault();
+    setIsResetSubmitting(true);
+
+    try {
+      const response = await authService.requestReset(resetEmail);
+      showToast('success', response.message || 'Reset request submitted');
+      setIsResetModalOpen(false);
+      setResetEmail('');
+    } catch (err) {
+      showToast('error', err.response?.data?.error || 'Failed to submit reset request');
+    } finally {
+      setIsResetSubmitting(false);
     }
   };
 
@@ -80,7 +101,10 @@ export function LoginPage() {
               <label htmlFor="password" className="block text-sm font-medium text-[#D1D1D6]">Password</label>
               <button
                 type="button"
-                onClick={() => showToast('info', 'Contact an administrator to reset your password.')}
+                onClick={() => {
+                  setResetEmail(email);
+                  setIsResetModalOpen(true);
+                }}
                 className="text-sm text-[#4F8EF7] hover:text-[#78A9F9] transition-colors font-medium"
               >
                 Forgot password?
@@ -116,6 +140,42 @@ export function LoginPage() {
         </div>
         <p className="text-xs text-[#6B7280] mt-2">v2.4.1-stable • ProjectFlow</p>
       </div>
+
+      <Modal isOpen={isResetModalOpen} onClose={() => setIsResetModalOpen(false)} title="Request Password Reset" size="sm">
+        <form onSubmit={handlePasswordResetRequest} className="space-y-4">
+          <p className="text-sm text-[#A0A0AB]">
+            Submit your email address and the request will be recorded for an administrator to review.
+          </p>
+          <div className="space-y-2">
+            <label htmlFor="reset-email" className="block text-sm font-medium text-[#D1D1D6]">Email Address</label>
+            <input
+              id="reset-email"
+              type="email"
+              value={resetEmail}
+              onChange={(event) => setResetEmail(event.target.value)}
+              placeholder="dev@example.com"
+              required
+              className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-[15px] text-white placeholder:text-[#6B7280] focus:border-[#4F8EF7] focus:outline-none focus:ring-2 focus:ring-[#4F8EF7]/50"
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsResetModalOpen(false)}
+              className="rounded-xl border border-white/10 px-4 py-2 text-sm text-[#D1D1D6] transition-colors hover:bg-white/5"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isResetSubmitting}
+              className="rounded-xl bg-gradient-to-r from-[#4F8EF7] to-[#43D9AD] px-4 py-2 text-sm font-medium text-white transition-all disabled:opacity-60"
+            >
+              {isResetSubmitting ? 'Submitting...' : 'Submit Request'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

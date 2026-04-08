@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { useKanban } from '../hooks/useKanban';
 import { useIssueDependencies } from '../hooks/useIssues';
 
+const WORKSPACE_STORAGE_KEY = 'openagile_current_workspace_project_id';
+
 const priorityColors = { High: '#EF4444', Medium: '#F59E0B', Low: '#6B7280' };
 const statusColors = {
   ToDo: { bg: '#4B4B5E', text: '#A0A0B0' },
@@ -63,9 +65,17 @@ export function KanbanPage() {
   
   useEffect(() => {
     if (projects.length > 0 && !selectedProject) {
-      setSelectedProject(projects[0].projectId);
+      const storedWorkspaceId = localStorage.getItem(WORKSPACE_STORAGE_KEY);
+      const preferredProject = projects.find((project) => project.projectId === storedWorkspaceId) || projects[0];
+      setSelectedProject(preferredProject.projectId);
     }
   }, [projects, selectedProject]);
+
+  useEffect(() => {
+    if (selectedProject) {
+      localStorage.setItem(WORKSPACE_STORAGE_KEY, selectedProject);
+    }
+  }, [selectedProject]);
 
   const { columns, isLoading, moveCard, presenceUsers } = useKanban(selectedProject, null);
 
@@ -116,7 +126,7 @@ export function KanbanPage() {
           </div>
           
         </div>
-        <button onClick={() => navigate('/issues')} className="flex items-center gap-2 px-4 py-2 bg-[#4F8EF7] hover:bg-[#4080E0] rounded-md text-white text-sm font-medium transition-colors">
+        <button onClick={() => handleAddIssue('ToDo')} className="flex items-center gap-2 px-4 py-2 bg-[#4F8EF7] hover:bg-[#4080E0] rounded-md text-white text-sm font-medium transition-colors">
           <Plus className="w-4 h-4" />Add Card
         </button>
       </div>

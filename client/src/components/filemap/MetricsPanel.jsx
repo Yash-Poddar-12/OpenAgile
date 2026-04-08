@@ -24,11 +24,12 @@ const MetricsPanel = ({ metrics, scanStatus, onExport }) => {
     }
 
     return list.map((item, index) => {
-      const basename = item.file.split(/[/\\]/).pop(); // Extract filename safely
+      const fileName = typeof item?.file === 'string' ? item.file : (item?.name || 'Unknown file');
+      const basename = fileName.split(/[/\\]/).pop(); // Extract filename safely
       
       return (
         <div key={index} className="flex justify-between items-center py-1.5 border-b border-border last:border-0 hover:bg-[#1E1E2E] rounded transition-colors px-1">
-          <span className="text-xs text-muted truncate max-w-[180px]" title={item.file}>
+          <span className="text-xs text-muted truncate max-w-[180px]" title={fileName}>
             {basename}
           </span>
           <span className="text-xs font-mono text-blue font-medium bg-[#12121F] px-2 py-0.5 rounded shadow-sm border border-[#2A2A3E]">

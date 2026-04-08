@@ -38,7 +38,7 @@ const IssueForm = ({ onClose, onSuccess, initialProjectId }) => {
       const pRes = await api.get('/projects');
       setProjects(pRes.data.projects || []);
       
-      const uRes = await api.get('/users');
+      const uRes = await api.get('/users/active');
       setUsers(uRes.data.users || []);
     } catch (err) {
       showToast('error', 'Failed to fetch form dependencies');
